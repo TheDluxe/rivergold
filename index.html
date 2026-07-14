@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Rivergold — Focus System</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1B4B4A">
+<style>
+  :root{
+    --river-950:#0F2E2D;
+    --river-900:#1B4B4A;
+    --river-700:#256461;
+    --river-500:#3D8985;
+    --river-300:#8FBFBC;
+    --river-100:#D8EAE8;
+    --river-050:#F0F6F5;
+
+    --gold-900:#8A6A24;
+    --gold-700:#B08A31;
+    --gold-500:#C89B3C;
+    --gold-300:#E0C179;
+    --gold-100:#F3E6C4;
+
+    --sand-050:#F6F2E6;
+    --sand-100:#F0EADA;
+
+    --ok-600:#4A7C4E;
+    --ok-100:#DCEBDD;
+    --warn-600:#B4553F;
+    --warn-100:#F3DAD3;
+
+    --text-strong:#16302E;
+    --text-soft:#3D5A57;
+    --radius-lg:28px;
+    --radius-md:18px;
+    --radius-sm:12px;
+    --shadow-soft: 0 8px 24px rgba(22,48,46,0.10);
+
+    --app-max-width:480px;
+    --sidebar-width:0px;
+  }
+  @media (min-width:860px){
+    :root{ --app-max-width:600px; --sidebar-width:236px; }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    background: var(--sand-050);
+    color: var(--text-strong);
+    overscroll-behavior:none;
+  }
+  :focus-visible{ outline:2px solid var(--river-500); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+
+  #shell{
+    max-width: calc(var(--app-max-width) + var(--sidebar-width));
+    margin:0 auto;
+    display:flex;
+    align-items:flex-start;
+    min-height:100vh;
+  }
+
+  #app{
+    max-width:var(--app-max-width);
+    width:100%;
+    flex:1;
+    min-width:0;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    background: var(--sand-050);
+    position:relative;
+    padding-bottom:86px;
+  }
+  header.top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:20px 20px 8px;
+  }
+  header.top h1{
+    font-size:19px;
+    margin:0;
+    font-weight:700;
+    letter-spacing:0.2px;
+    color:var(--river-900);
+  }
+  header.top .sub{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-top:2px;
+  }
+  .icon-btn{
+    width:40px;height:40px;
+    border-radius:50%;
+    border:none;
+    background:var(--river-100);
+    color:var(--river-900);
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;
+    cursor:pointer;
+  }
+  .icon-btn:hover{ background:var(--river-300); }
+  main{flex:1; padding:8px 18px 12px;}
+  .screen{display:none;}
+  .screen.active{display:block; animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+
+  .card{
+    background:#fff;
+    background:var(--river-050);
+    border-radius:var(--radius-lg);
+    padding:20px;
+    box-shadow:var(--shadow-soft);
+    margin-bottom:16px;
+  }
+
+  /* Home / session */
+  .empty-state{
+    text-align:center;
+    padding:36px 12px;
+  }
+  .empty-state .leaf{font-size:40px; margin-bottom:10px;}
+  .empty-state h2{font-size:17px; color:var(--river-900); margin:0 0 6px;}
+  .empty-state p{font-size:13.5px; color:var(--text-soft); margin:0 0 20px; line-height:1.5;}
+
+  .btn{
+    border:none;
+    border-radius:999px;
+    padding:14px 22px;
+    font-size:15px;
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    justify-content:center;
+    transition:transform .12s ease, background .15s ease;
+  }
+  .btn-primary{background:var(--gold-500); color:var(--text-strong);}
+  .btn-primary:active{background:var(--gold-700);}
+  .btn-river{background:var(--river-900); color:var(--sand-050);}
+  .btn-river:active{background:var(--river-700);}
+  .btn-ghost{background:var(--river-100); color:var(--river-900);}
+  .btn-block{width:100%;}
+  .btn-sm{padding:9px 16px; font-size:13px; border-radius:999px;}
+
+  input[type=text], textarea, select{
+    width:100%;
+    border:2px solid var(--river-100);
+    background:#fff;
+    border-radius:var(--radius-md);
+    padding:13px 15px;
+    font-size:15px;
+    color:var(--text-strong);
+    font-family:inherit;
+    outline:none;
+  }
+  input[type=text]:focus, textarea:focus{border-color:var(--river-500);}
+  label.field-label{font-size:12.5px; font-weight:600; color:var(--text-soft); display:block; margin:14px 0 6px;}
+  label.field-label:first-child{margin-top:0;}
+  .hint-inline{font-size:11px; color:var(--text-soft); margin-top:6px;}
+
+  select{
+    appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%233D5A57' d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat:no-repeat; background-position:right 14px center; background-size:18px; padding-right:38px;
+  }
+
+  .quick-row{display:flex; gap:10px;}
+  .quick-btn{
+    flex:1; background:var(--river-100); border:none; border-radius:var(--radius-md); padding:16px 6px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:7px; font-size:11.5px; font-weight:700; color:var(--river-900); cursor:pointer;
+    transition:background .15s ease, transform .12s ease;
+  }
+  .quick-btn .qi{font-size:24px;}
+  .quick-btn:active{background:var(--river-300);}
+
+  .check-list{display:flex; flex-direction:column; gap:2px;}
+  .check-item{display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--river-100); font-size:14.5px; cursor:pointer;}
+  .check-item:last-child{border-bottom:none;}
+  .check-item input[type=checkbox]{width:21px; height:21px; accent-color:var(--river-900); border-radius:6px; cursor:pointer; flex-shrink:0;}
+
+  .active-task-card{
+    text-align:center;
+    padding:26px 20px 22px;
+  }
+  .active-task-card .proj-tag{
+    display:inline-block; font-size:11px; font-weight:700; letter-spacing:.4px;
+    text-transform:uppercase; color:var(--river-700); background:var(--river-100);
+    padding:4px 10px; border-radius:999px; margin-bottom:10px;
+  }
+  .active-task-card h2{font-size:18px; margin:0 0 4px; color:var(--text-strong);}
+  .active-task-card .chunk-text{font-size:13.5px; color:var(--text-soft); margin:0 0 18px;}
+
+  .mode-toggle{
+    display:flex; background:var(--river-100); border-radius:999px; padding:4px; margin:0 auto 18px; width:fit-content;
+  }
+  .mode-toggle button{
+    border:none; background:transparent; padding:8px 18px; border-radius:999px; font-size:13px; font-weight:600; color:var(--river-700); cursor:pointer;
+  }
+  .mode-toggle button.on{background:var(--river-900); color:#fff;}
+
+  .ring-wrap{position:relative; width:220px; height:220px; margin:0 auto 18px;}
+  .ring-wrap svg{width:100%; height:100%; transform:rotate(-90deg);}
+  .ring-bg{fill:none; stroke:var(--river-100); stroke-width:14;}
+  .ring-fg{fill:none; stroke:var(--gold-500); stroke-width:14; stroke-linecap:round; transition:stroke-dashoffset .4s linear, stroke .4s;}
+  .ring-center{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+  .ring-center .time{font-size:30px; font-weight:700; color:var(--text-strong); font-variant-numeric:tabular-nums;}
+  .ring-center .label{font-size:11.5px; color:var(--text-soft); margin-top:2px; text-transform:uppercase; letter-spacing:.5px;}
+
+  .presets{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:16px;}
+  .preset-chip{
+    border:2px solid var(--river-100); background:#fff; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; color:var(--river-700); cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .preset-chip.on{background:var(--river-900); border-color:var(--river-900); color:#fff;}
+
+  .session-controls{display:flex; gap:10px; justify-content:center; margin-top:6px;}
+
+  /* floating buttons: centered relative to the app column, not the raw viewport */
+  .floating-layer{
+    position:fixed; inset:0; z-index:40; pointer-events:none;
+    max-width: calc(var(--app-max-width) + var(--sidebar-width));
+    margin:0 auto;
+  }
+  .floating-inner{
+    position:relative; height:100%;
+    margin-left:var(--sidebar-width);
+    max-width:var(--app-max-width);
+  }
+  .floating-inner > *{ position:absolute; pointer-events:auto; }
+
+  .float-capture{
+    right:20px; bottom:96px;
+    width:54px;height:54px;
+    border-radius:50%;
+    background:var(--river-900);
+    color:var(--sand-050);
+    border:none;
+    font-size:22px;
+    box-shadow:var(--shadow-soft);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fab{
+    right:20px; bottom:96px;
+    width:54px;height:54px; border-radius:50%;
+    background:var(--gold-500); color:var(--text-strong); border:none; font-size:26px; box-shadow:var(--shadow-soft);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .urge-btn{
+    left:20px; bottom:96px;
+    width:54px; height:54px; border-radius:50%; background:var(--warn-100); color:var(--warn-600); border:none; font-size:20px; box-shadow:var(--shadow-soft);
+  }
+  @media (hover:hover){
+    .fab:hover, .float-capture:hover, .urge-btn:hover, .icon-btn:hover{ transform:translateY(-2px); }
+    .btn:hover{ filter:brightness(1.04); }
+    .task-item:hover{ box-shadow:0 10px 26px rgba(22,48,46,0.14); }
+    .quick-btn:hover{ background:var(--river-300); }
+    .preset-chip:hover{ border-color:var(--river-500); }
+  }
+
+  /* bottom nav (mobile) */
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0;
+    max-width:var(--app-max-width); margin:0 auto;
+    margin-left:var(--sidebar-width);
+    background:var(--river-050);
+    border-top:1px solid var(--river-100);
+    display:flex;
+    padding:10px 10px calc(10px + env(safe-area-inset-bottom));
+    z-index:30;
+  }
+  nav.tabbar button{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:3px;
+    color:var(--text-soft); font-size:10.5px; font-weight:600; cursor:pointer; padding:6px 2px; border-radius:14px;
+  }
+  nav.tabbar button .ic{font-size:19px;}
+  nav.tabbar button.active{color:var(--river-900); background:var(--river-100);}
+
+  /* sidebar nav (desktop) */
+  nav.sidebar{
+    display:none;
+    width:var(--sidebar-width);
+    flex-shrink:0;
+    flex-direction:column;
+    gap:4px;
+    padding:32px 14px;
+    position:sticky;
+    top:0;
+    height:100vh;
+  }
+  .sidebar-brand{ display:flex; align-items:center; gap:10px; padding:0 10px; margin-bottom:26px; }
+  .sidebar-logo{ font-size:22px; color:var(--gold-700); }
+  .sidebar-title{ font-weight:700; color:var(--river-900); font-size:15px; line-height:1.2; }
+  .sidebar-sub{ font-size:11px; color:var(--text-soft); margin-top:1px; }
+  .side-btn{
+    display:flex; align-items:center; gap:12px;
+    border:none; background:transparent; text-align:left;
+    padding:12px 14px; border-radius:14px; font-size:14px; font-weight:600;
+    color:var(--text-soft); cursor:pointer; transition:background .15s ease, color .15s ease;
+  }
+  .side-btn .ic{ font-size:18px; width:20px; text-align:center; }
+  .side-btn:hover{ background:var(--river-100); }
+  .side-btn.active{ background:var(--river-900); color:var(--sand-050); }
+
+  /* Board */
+  .board-cols{display:flex; flex-direction:column; gap:18px;}
+  .board-col h3{
+    font-size:12.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--river-700); margin:0 0 10px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .board-col h3 .count{background:var(--river-100); border-radius:999px; padding:1px 9px; font-size:11px;}
+  .task-item{
+    background:#fff; border-radius:var(--radius-md); padding:13px 14px; margin-bottom:8px; box-shadow:var(--shadow-soft);
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    transition:box-shadow .15s ease;
+  }
+  .task-item .t-info{flex:1; min-width:0;}
+  .task-item .t-title{font-size:14px; font-weight:600; color:var(--text-strong); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .task-item .t-proj{font-size:11px; color:var(--text-soft); margin-top:2px;}
+  .task-item.done .t-title{text-decoration:line-through; color:var(--text-soft);}
+
+  /* Log */
+  .stat-row{display:flex; gap:10px; margin-bottom:16px;}
+  .stat-box{flex:1; background:var(--river-050); border-radius:var(--radius-md); padding:14px; text-align:center;}
+  .stat-box .num{font-size:22px; font-weight:700; color:var(--river-900);}
+  .stat-box .lbl{font-size:10.5px; color:var(--text-soft); margin-top:2px; text-transform:uppercase; letter-spacing:.3px;}
+  .rhythm-row{display:flex; align-items:flex-end; gap:6px; height:90px; margin:10px 0 4px;}
+  .rhythm-col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%;}
+  .rhythm-bar{width:100%; border-radius:8px 8px 4px 4px; background:var(--river-300);}
+  .rhythm-bar.rest{background:var(--gold-300);}
+  .rhythm-day{font-size:10px; color:var(--text-soft); margin-top:6px;}
+  .session-row{
+    display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--river-100); font-size:13px;
+  }
+  .session-row:last-child{border-bottom:none;}
+  .session-row .mood-pill{font-size:15px;}
+
+  /* Capture */
+  .capture-item{
+    background:var(--river-050); border-radius:var(--radius-md); padding:13px 15px; margin-bottom:8px; font-size:14px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .capture-item .c-text{flex:1;}
+  .capture-item .c-time{font-size:10.5px; color:var(--text-soft); margin-top:3px;}
+  .capture-item button{background:var(--gold-100); color:var(--gold-900); border:none; border-radius:999px; padding:6px 12px; font-size:11.5px; font-weight:700; cursor:pointer;}
+
+  /* Modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(15,46,45,0.45); display:flex; align-items:flex-end; justify-content:center; z-index:100;
+  }
+  .overlay.hidden{display:none;}
+  .sheet{
+    background:var(--sand-050); width:100%; max-width:480px; border-radius:28px 28px 0 0; padding:26px 22px calc(26px + env(safe-area-inset-bottom));
+    animation:slideup .25s ease;
+  }
+  @keyframes slideup{from{transform:translateY(30px); opacity:0;} to{transform:none; opacity:1;}}
+  .sheet h3{margin:0 0 6px; font-size:17px; color:var(--river-900);}
+  .sheet p.hint{font-size:13px; color:var(--text-soft); margin:0 0 16px;}
+  .mood-grid{display:flex; gap:10px; justify-content:space-between; margin-bottom:8px;}
+  .mood-opt{
+    flex:1; background:#fff; border:2px solid var(--river-100); border-radius:var(--radius-md); padding:14px 6px; text-align:center; cursor:pointer;
+  }
+  .mood-opt .em{font-size:26px; display:block; margin-bottom:6px;}
+  .mood-opt .nm{font-size:10.5px; font-weight:600; color:var(--text-soft);}
+  .mood-opt.picked{border-color:var(--gold-500); background:var(--gold-100);}
+
+  .reset-modal{text-align:center;}
+  .reset-modal .leaf{font-size:44px; margin-bottom:8px;}
+
+  .toast{
+    position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--river-900); color:#fff; padding:10px 20px; border-radius:999px; font-size:13px; font-weight:600; z-index:200; box-shadow:var(--shadow-soft); opacity:0; pointer-events:none; transition:opacity .3s, transform .3s;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(6px);}
+
+  .badge-flash{
+    position:fixed; inset:0; z-index:150; display:flex; align-items:center; justify-content:center; pointer-events:none;
+  }
+  .badge-flash .circle{
+    width:120px; height:120px; border-radius:50%; background:var(--ok-100); border:4px solid var(--ok-600); display:flex; align-items:center; justify-content:center; font-size:52px;
+    animation:pop .55s ease;
+  }
+  @keyframes pop{0%{transform:scale(.4); opacity:0;} 60%{transform:scale(1.08); opacity:1;} 100%{transform:scale(1);}}
+
+  /* Desktop layout */
+  @media (min-width:860px){
+    body{ background:linear-gradient(180deg, var(--river-100), var(--sand-100) 340px); }
+    nav.sidebar{ display:flex; }
+    nav.tabbar{ display:none; }
+    #app{
+      margin:28px 0; min-height:auto; max-height:calc(100vh - 56px); overflow-y:auto;
+      border-radius:28px; box-shadow:0 24px 64px rgba(22,48,46,0.18); padding-bottom:24px;
+    }
+    header.top{ padding:26px 26px 8px; }
+    main{ padding:10px 26px 26px; }
+    .board-cols{ flex-direction:row; align-items:flex-start; gap:14px; }
+    .board-col{ flex:1; min-width:0; }
+    .fab, .float-capture, .urge-btn{ bottom:40px; }
+  }
+
+  @media (max-width:859.98px){
+    nav.sidebar{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <nav class="sidebar" id="sidebarNav">
+    <div class="sidebar-brand">
+      <span class="sidebar-logo">◐</span>
+      <div>
+        <div class="sidebar-title">Rivergold</div>
+        <div class="sidebar-sub">a focus system, not a schedule</div>
+      </div>
+    </div>
+    <button class="side-btn active" data-tab="home" onclick="switchTab('home')"><span class="ic">◐</span>Home</button>
+    <button class="side-btn" data-tab="board" onclick="switchTab('board')"><span class="ic">▤</span>Board</button>
+    <button class="side-btn" data-tab="capture" onclick="switchTab('capture')"><span class="ic">✎</span>Capture</button>
+    <button class="side-btn" data-tab="log" onclick="switchTab('log')"><span class="ic">◔</span>Log</button>
+  </nav>
+
+  <div id="app">
+
+    <header class="top">
+      <div>
+        <h1 id="headerTitle">Rivergold</h1>
+        <div class="sub" id="headerSub">a focus system, not a schedule</div>
+      </div>
+      <button class="icon-btn" onclick="openSettings()">⚙</button>
+    </header>
+
+    <main>
+
+      <!-- HOME -->
+      <section class="screen active" id="screen-home">
+        <div id="homeContent"></div>
+      </section>
+
+      <!-- BOARD -->
+      <section class="screen" id="screen-board">
+        <div class="board-cols" id="boardCols"></div>
+      </section>
+
+      <!-- CAPTURE -->
+      <section class="screen" id="screen-capture">
+        <div class="card">
+          <label class="field-label">Park a thought — don't lose the task holding it</label>
+          <textarea id="captureInput" rows="2" placeholder="What just crossed your mind?"></textarea>
+          <div class="hint-inline">⌘/Ctrl + Enter to park</div>
+          <button class="btn btn-primary btn-block" style="margin-top:12px" onclick="addCapture()">Park it</button>
+        </div>
+        <div id="captureList"></div>
+      </section>
+
+      <!-- LOG -->
+      <section class="screen" id="screen-log">
+        <div id="logContent"></div>
+      </section>
+
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab-btn active" data-tab="home" onclick="switchTab('home')"><span class="ic">◐</span>Home</button>
+      <button class="tab-btn" data-tab="board" onclick="switchTab('board')"><span class="ic">▤</span>Board</button>
+      <button class="tab-btn" data-tab="capture" onclick="switchTab('capture')"><span class="ic">✎</span>Capture</button>
+      <button class="tab-btn" data-tab="log" onclick="switchTab('log')"><span class="ic">◔</span>Log</button>
+    </nav>
+
+  </div>
+
+  <div class="floating-layer">
+    <div class="floating-inner">
+      <button class="urge-btn" id="urgeBtn" style="display:none" onclick="logUrge()" title="Log an urge">⚡</button>
+      <button class="fab" id="boardFab" style="display:none" onclick="openNewTask()">＋</button>
+      <button class="float-capture" id="captureFab" style="display:none" onclick="switchTab('capture')">✎</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- overlays injected dynamically -->
+<div id="overlayRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ================= SUPABASE CONFIG ================= */
+/* Replace these two with your own project's values (Supabase dashboard → Settings → API) */
+const SUPABASE_URL = "https://cdevvcnupwkadhntwaeg.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkZXZ2Y251cHdrYWRobnR3YWVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5ODYwNTUsImV4cCI6MjA5OTU2MjA1NX0.OC011SffjRSaCOKycnAhs5z9nyr9qLj68XNuobro4MA";
+const ROW_ID = "main"; // single-user app — one row holds everything
+
+let supa = null;
+try{
+  if(SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("YOUR-PROJECT")){
+    supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+}catch(e){ console.error("Supabase init failed", e); }
+
+/* ---------------- Storage ---------------- */
+let DATA = {
+  tasks: [],       // {id, title, project, status: backlog|doing|done, chunks:[{id,text,estimateMin,mode}]}
+  captures: [],     // {id,text,ts}
+  sessions: [],     // completed {id,type:work|recovery,taskTitle,chunkText,mode,estimateMin,actualSec,moodStart,moodEnd,ts}
+  settings: {redirect: "Grab the jump rope for 3 minutes, then decide."},
+  active: null      // {taskId,chunkId,taskTitle,chunkText,mode,estimateMin,startTs,phase}
+};
+
+async function loadData(){
+  if(supa){
+    try{
+      const { data, error } = await supa.from('rivergold_data').select('data').eq('id', ROW_ID).maybeSingle();
+      if(error) throw error;
+      if(data && data.data){ DATA = Object.assign(DATA, data.data); }
+      else { await supa.from('rivergold_data').upsert({ id: ROW_ID, data: DATA }); }
+    }catch(e){
+      console.error('Supabase load failed, falling back to local storage', e);
+      loadLocalFallback();
+    }
+  } else {
+    loadLocalFallback();
+  }
+  render();
+  initNotifications();
+}
+function loadLocalFallback(){
+  try{
+    const raw = localStorage.getItem('rivergold-data');
+    if(raw) DATA = Object.assign(DATA, JSON.parse(raw));
+  }catch(e){}
+}
+let saveTimer=null;
+function saveData(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    if(supa){
+      try{
+        const { error } = await supa.from('rivergold_data').upsert({ id: ROW_ID, data: DATA, updated_at: new Date().toISOString() });
+        if(error) throw error;
+      }catch(e){
+        console.error('Supabase save failed, saving locally instead', e);
+        try{ localStorage.setItem('rivergold-data', JSON.stringify(DATA)); }catch(e2){}
+      }
+    } else {
+      try{ localStorage.setItem('rivergold-data', JSON.stringify(DATA)); }catch(e){}
+    }
+  }, 400);
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+/* ---------------- Notifications ---------------- */
+let swRegistration = null;
+async function initNotifications(){
+  if(!('serviceWorker' in navigator) || !('Notification' in window)) return;
+  try{
+    swRegistration = await navigator.serviceWorker.register('sw.js');
+  }catch(e){ console.error('SW registration failed', e); }
+}
+function requestNotificationPermission(){
+  if(!('Notification' in window)){ toast('Notifications not supported on this browser'); return; }
+  Notification.requestPermission().then(perm=>{
+    toast(perm==='granted' ? 'Notifications on' : 'Notifications blocked');
+  });
+}
+function notify(title, body){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  if(swRegistration){
+    swRegistration.showNotification(title, {
+      body, icon: 'icon-192.png', badge: 'icon-192.png', vibrate:[100,60,100], tag:'rivergold-timer'
+    });
+  } else {
+    try{ new Notification(title, {body}); }catch(e){}
+  }
+}
+
+/* ---------------- Tabs ---------------- */
+function switchTab(tab){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+tab).classList.add('active');
+  document.querySelectorAll('.tab-btn, .side-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  document.getElementById('boardFab').style.display = (tab==='board') ? 'flex' : 'none';
+  document.getElementById('captureFab').style.display = (tab==='home' && DATA.active) ? 'flex' : 'none';
+  document.getElementById('urgeBtn').style.display = (tab==='home' && DATA.active) ? 'flex' : 'none';
+  if(tab==='board') renderBoard();
+  if(tab==='capture') renderCapture();
+  if(tab==='log') renderLog();
+  if(tab==='home') renderHome();
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- HOME / SESSION ---------------- */
+let ringTimer=null;
+let ringStart=0;
+let ringDurationSec=0; // for timer mode
+let ringMode='timer';
+let alertsFired={half:false, near:false, done:false};
+
+function renderHome(){
+  const el = document.getElementById('homeContent');
+  if(!DATA.active){
+    document.getElementById('captureFab').style.display='none';
+    document.getElementById('urgeBtn').style.display='none';
+    const backlog = DATA.tasks.filter(t=>t.status!=='done');
+    el.innerHTML = `
+      <div class="card">
+        <label class="field-label">Quick start — no typing needed</label>
+        <div class="quick-row">
+          <button class="quick-btn" onclick="openQuickStart('jumprope')"><span class="qi">🪢</span>Jump Rope</button>
+          <button class="quick-btn" onclick="openQuickStart('calisthenics')"><span class="qi">💪</span>Calisthenics</button>
+          <button class="quick-btn" onclick="openQuickStart('chores')"><span class="qi">🧹</span>Chores</button>
+        </div>
+      </div>
+      <div class="card empty-state">
+        <div class="leaf">🌿</div>
+        <h2>Nothing running right now</h2>
+        <p>Pick the next small thing, or start a recovery block. No pressure to know the whole plan — just the next step.</p>
+        <button class="btn btn-primary btn-block" onclick="openPickTask()">Start next chunk</button>
+        <div style="height:10px"></div>
+        <button class="btn btn-ghost btn-block" onclick="startRecovery()">Log a recovery block</button>
+      </div>
+      ${backlog.length ? `<div class="card"><label class="field-label">Waiting on the board (${backlog.length})</label>
+        ${backlog.slice(0,3).map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('')}
+      </div>` : ''}
+    `;
+    return;
+  }
+  // active session view
+  document.getElementById('captureFab').style.display = DATA.active.type==='recovery' ? 'none' : 'flex';
+  document.getElementById('urgeBtn').style.display = DATA.active.type==='recovery' ? 'none' : 'flex';
+  const a = DATA.active;
+  if(a.type==='recovery'){
+    el.innerHTML = `
+      <div class="card active-task-card">
+        <div class="proj-tag" style="background:var(--gold-100); color:var(--gold-900)">recovery</div>
+        <h2>Resting counts too</h2>
+        <p class="chunk-text">Step away. This is tracked with the same weight as work.</p>
+        <div class="ring-wrap"><svg viewBox="0 0 220 220">
+          <circle class="ring-bg" cx="110" cy="110" r="96"></circle>
+          <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="96" style="stroke:var(--gold-500)"></circle>
+        </svg><div class="ring-center"><div class="time" id="ringTime">00:00</div><div class="label">elapsed</div></div></div>
+        <div class="session-controls">
+          <button class="btn btn-river" onclick="endSession('neutral')">End recovery</button>
+        </div>
+      </div>`;
+    startRing(true);
+    return;
+  }
+  el.innerHTML = `
+    <div class="card active-task-card">
+      <div class="proj-tag">${escapeHtml(a.project||'task')}</div>
+      <h2>${escapeHtml(a.taskTitle)}</h2>
+      <p class="chunk-text">→ ${escapeHtml(a.chunkText)}</p>
+      ${!a.running ? `
+        <div class="mode-toggle">
+          <button class="${a.mode==='timer'?'on':''}" onclick="setMode('timer')">Timer</button>
+          <button class="${a.mode==='stopwatch'?'on':''}" onclick="setMode('stopwatch')">Stopwatch</button>
+        </div>
+        ${a.mode==='timer' ? `
+        <div class="presets">
+          ${[10,15,25,45].map(m=>`<div class="preset-chip ${a.estimateMin===m?'on':''}" onclick="setPreset(${m})">${m}m</div>`).join('')}
+        </div>` : `<p class="chunk-text">No pressure — this just tracks how long it actually takes.</p>`}
+        <button class="btn btn-primary" onclick="beginRunning()">Start ${a.mode==='timer' ? 'timer' : 'stopwatch'}</button>
+      ` : `
+        <div class="ring-wrap"><svg viewBox="0 0 220 220">
+          <circle class="ring-bg" cx="110" cy="110" r="96"></circle>
+          <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="96"></circle>
+        </svg><div class="ring-center"><div class="time" id="ringTime">00:00</div><div class="label" id="ringLabel">${a.mode==='timer'?'remaining':'elapsed'}</div></div></div>
+        <div class="session-controls">
+          <button class="btn btn-ghost" onclick="openMoodCheck('mid')">how's it feel?</button>
+          <button class="btn btn-river" onclick="endSession()">Finish chunk</button>
+        </div>
+      `}
+    </div>
+  `;
+  if(a.running) startRing(a.mode==='timer' ? false : true, a.mode==='timer' ? a.estimateMin*60 : null);
+}
+
+/* ---------------- Quick Start categories ---------------- */
+const QUICK_CATEGORIES = {
+  jumprope: {label:'Jump Rope', icon:'🪢', kind:'duration', project:'Jump Rope', hint:'Great for a fast reset — pick a length and go.'},
+  calisthenics: {label:'Calisthenics', icon:'💪', kind:'checklist', project:'Calisthenics', hint:'Check off what you\'re doing today.', items:['Push-ups','Squats','Plank','Lunges','Sit-ups','Burpees','Jumping jacks','Dips']},
+  chores: {label:'Chores', icon:'🧹', kind:'checklist', project:'Chores', hint:'Check off what needs doing today.', items:['Dishes','Laundry','Trash','Vacuum','Tidy room','Wipe counters','Mop floor','Make bed']}
+};
+window._qsDuration=5; window._qsMode='timer';
+
+function openQuickStart(key){
+  const cat = QUICK_CATEGORIES[key];
+  if(cat.kind==='duration'){
+    window._qsDuration=5; window._qsMode='timer';
+    showOverlay(`
+      <div class="sheet">
+        <h3>${cat.icon} ${cat.label}</h3>
+        <p class="hint">${cat.hint}</p>
+        <div class="presets" id="qsDurationPresets">
+          ${[3,5,10,15].map((m,i)=>`<div class="preset-chip ${i===1?'on':''}" onclick="qsPickDuration(this,${m})">${m}m</div>`).join('')}
+        </div>
+        <div class="mode-toggle" style="margin-bottom:18px;">
+          <button class="on" id="qsModeTimer" onclick="qsSetMode('timer')">Timer</button>
+          <button id="qsModeStop" onclick="qsSetMode('stopwatch')">Stopwatch</button>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="startQuickDuration('${key}')">Start</button>
+      </div>
+    `);
+  } else {
+    showOverlay(`
+      <div class="sheet">
+        <h3>${cat.icon} ${cat.label}</h3>
+        <p class="hint">${cat.hint}</p>
+        <div class="check-list" id="qsCheckList">
+          ${cat.items.map(it=>`
+            <label class="check-item">
+              <input type="checkbox" value="${escapeHtml(it)}" checked>
+              <span>${escapeHtml(it)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="startQuickChecklist('${key}')">Start</button>
+      </div>
+    `);
+  }
+}
+function qsPickDuration(el,m){
+  window._qsDuration=m;
+  document.querySelectorAll('#qsDurationPresets .preset-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+function qsSetMode(m){
+  window._qsMode=m;
+  document.getElementById('qsModeTimer').classList.toggle('on', m==='timer');
+  document.getElementById('qsModeStop').classList.toggle('on', m==='stopwatch');
+}
+function startQuickDuration(key){
+  const cat=QUICK_CATEGORIES[key];
+  closeOverlay();
+  DATA.active = {
+    type:'work', taskId:null, chunkId:null, taskTitle:cat.label, project:cat.project,
+    chunkText:cat.label+' session', mode:window._qsMode, estimateMin:window._qsDuration, running:false
+  };
+  saveData();
+  switchTab('home');
+}
+function startQuickChecklist(key){
+  const cat=QUICK_CATEGORIES[key];
+  const checked = Array.from(document.querySelectorAll('#qsCheckList input:checked')).map(i=>i.value);
+  if(!checked.length){ toast('Check at least one'); return; }
+  closeOverlay();
+  const task = {id:uid(), title:cat.label, project:cat.project, status:'doing', chunks:checked.map(v=>({id:uid(), text:v, done:false}))};
+  DATA.tasks.push(task);
+  saveData();
+  launchChunk(task, task.chunks[0]);
+  switchTab('home');
+}
+
+function setMode(m){ DATA.active.mode=m; saveData(); renderHome(); }
+function setPreset(m){ DATA.active.estimateMin=m; saveData(); renderHome(); }
+
+function beginRunning(){
+  if(DATA.active.mode==='timer' && !DATA.active.estimateMin) DATA.active.estimateMin=15;
+  DATA.active.running=true;
+  DATA.active.startTs=Date.now();
+  saveData();
+  openMoodCheck('start');
+}
+
+function startRing(countUp, totalSec){
+  clearInterval(ringTimer);
+  const startedAt = DATA.active.startTs;
+  alertsFired={half:false, near:false, done:false};
+  const circle = document.getElementById('ringFg');
+  const R=96, C=2*Math.PI*R;
+  circle.style.strokeDasharray = C;
+  function tick(){
+    const elapsedSec = Math.floor((Date.now()-startedAt)/1000);
+    const timeEl = document.getElementById('ringTime');
+    if(!timeEl) { clearInterval(ringTimer); return; }
+    if(countUp){
+      timeEl.textContent = fmt(elapsedSec);
+      circle.style.strokeDashoffset = C - Math.min(elapsedSec/1800,1)*C; // slow ambient fill over 30min for visual life
+    } else {
+      const remaining = Math.max(totalSec-elapsedSec,0);
+      timeEl.textContent = fmt(remaining);
+      const frac = Math.max(remaining/totalSec,0);
+      circle.style.strokeDashoffset = C - frac*C;
+      const pct = elapsedSec/totalSec;
+      if(pct>=0.5 && !alertsFired.half){ alertsFired.half=true; circle.style.stroke='var(--gold-500)'; }
+      if(pct>=0.9 && !alertsFired.near){ alertsFired.near=true; circle.style.stroke='var(--warn-600)'; beep(1); vibrate(80); notify('Almost done', (DATA.active.chunkText||'Session')+' is wrapping up soon.'); }
+      if(remaining<=0 && !alertsFired.done){ alertsFired.done=true; beep(2); vibrate([100,60,100]); toast('Time\'s up — wrap up when ready'); notify('Time\'s up', (DATA.active.chunkText||'Session')+' — wrap up when ready.'); }
+    }
+  }
+  tick();
+  ringTimer=setInterval(tick,1000);
+}
+function fmt(s){ const m=Math.floor(s/60); const ss=s%60; return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0'); }
+
+function beep(times){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    let t=ctx.currentTime;
+    for(let i=0;i<times;i++){
+      const o=ctx.createOscillator(); const g=ctx.createGain();
+      o.type='sine'; o.frequency.value=660;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.15,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+      o.start(t); o.stop(t+0.3);
+      t+=0.35;
+    }
+  }catch(e){}
+}
+function vibrate(pattern){ try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){} }
+
+/* mood check */
+function openMoodCheck(phase){
+  const opts = [
+    {em:'🙂',nm:'neutral',v:'neutral'},
+    {em:'🌊',nm:'flow',v:'flow'},
+    {em:'😰',nm:'anxious',v:'anxious'},
+    {em:'🌀',nm:'stuck',v:'stuck'},
+  ];
+  showOverlay(`
+    <div class="sheet">
+      <h3>${phase==='start'?'Before you dive in' : phase==='mid' ? 'Quick check' : 'How did that feel'}</h3>
+      <p class="hint">One tap, no explaining needed.</p>
+      <div class="mood-grid">
+        ${opts.map(o=>`<div class="mood-opt" onclick="pickMood('${o.v}','${phase}')"><span class="em">${o.em}</span><span class="nm">${o.nm}</span></div>`).join('')}
+      </div>
+    </div>
+  `);
+}
+function pickMood(v, phase){
+  closeOverlay();
+  if(!DATA.active) return;
+  if(phase==='start') DATA.active.moodStart=v;
+  if(phase==='end') DATA.active.moodEnd=v;
+  saveData();
+  if(v==='stuck'){
+    offerReset();
+  } else if(phase==='end'){
+    finalizeSession();
+  } else {
+    renderHome();
+  }
+}
+function offerReset(){
+  showOverlay(`
+    <div class="sheet reset-modal">
+      <div class="leaf">🍃</div>
+      <h3>That's okay — reset first</h3>
+      <p class="hint">You can't think your way out of a stuck state. A short physical break helps more than pushing through.</p>
+      <button class="btn btn-primary btn-block" onclick="startResetTimer()">Start 60s reset</button>
+      <div style="height:8px"></div>
+      <button class="btn btn-ghost btn-block" onclick="closeOverlay(); renderHome();">Skip, keep going</button>
+    </div>
+  `);
+}
+function startResetTimer(){
+  let s=60;
+  showOverlay(`
+    <div class="sheet reset-modal">
+      <div class="leaf">🌬️</div>
+      <h3>Breathe, stretch, look away from the screen</h3>
+      <div class="time" id="resetTime" style="font-size:38px; font-weight:700; margin:14px 0; color:var(--river-900)">60</div>
+      <button class="btn btn-ghost btn-block" onclick="closeOverlay(); renderHome();">Done early</button>
+    </div>
+  `);
+  const iv=setInterval(()=>{
+    s--;
+    const el=document.getElementById('resetTime');
+    if(!el){ clearInterval(iv); return; }
+    el.textContent=s;
+    if(s<=0){ clearInterval(iv); beep(1); closeOverlay(); renderHome(); }
+  },1000);
+}
+
+function endSession(){
+  openMoodCheck('end');
+}
+function finalizeSession(){
+  const a=DATA.active;
+  const actualSec = Math.floor((Date.now()-a.startTs)/1000);
+  DATA.sessions.push({
+    id:uid(), type:'work', taskTitle:a.taskTitle, chunkText:a.chunkText, mode:a.mode,
+    estimateMin:a.estimateMin||null, actualSec, moodStart:a.moodStart||null, moodEnd:a.moodEnd||null, ts:Date.now()
+  });
+  // mark chunk done on task, find next chunk to auto-advance into
+  const task = a.taskId ? DATA.tasks.find(t=>t.id===a.taskId) : null;
+  let nextChunk=null;
+  if(task){
+    const ch = task.chunks && task.chunks.find(c=>c.id===a.chunkId);
+    if(ch) ch.done=true;
+    task.status='doing';
+    nextChunk = (task.chunks||[]).find(c=>!c.done);
+  }
+  DATA.active=null;
+  saveData();
+  closeOverlay();
+  flashComplete();
+  setTimeout(()=>{
+    if(nextChunk){
+      launchChunk(task, nextChunk);
+      toast('Next: '+nextChunk.text);
+    } else {
+      renderHome();
+    }
+  }, 700);
+}
+
+function flashComplete(){
+  const d=document.createElement('div');
+  d.className='badge-flash';
+  d.innerHTML=`<div class="circle">✓</div>`;
+  document.getElementById('overlayRoot').appendChild(d);
+  setTimeout(()=>d.remove(), 700);
+}
+
+function startRecovery(){
+  DATA.active={type:'recovery', startTs:Date.now(), running:true};
+  saveData();
+  renderHome();
+}
+
+/* impulse logging */
+function logUrge(){
+  showOverlay(`
+    <div class="sheet">
+      <h3>Urge logged</h3>
+      <p class="hint">Your pre-committed redirect:</p>
+      <div class="card" style="background:var(--gold-100); box-shadow:none;">${escapeHtml(DATA.settings.redirect)}</div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="closeOverlay()">Back to it</button>
+    </div>
+  `);
+  DATA.sessions.push({id:uid(), type:'urge', ts:Date.now()});
+  saveData();
+}
+
+/* pick / start task */
+function openPickTask(){
+  const list = DATA.tasks.filter(t=>t.status!=='done');
+  showOverlay(`
+    <div class="sheet">
+      <h3>What's next</h3>
+      <p class="hint">Pick from the board, or name something new.</p>
+      ${list.length? list.map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')" style="cursor:pointer"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('') : '<p class="hint">Board is empty.</p>'}
+      <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeOverlay(); openNewTask(true);">＋ New task</button>
+    </div>
+  `);
+}
+function pickTaskToRun(taskId){
+  closeOverlay();
+  const task = DATA.tasks.find(t=>t.id===taskId);
+  if(!task) return;
+  const openChunk = (task.chunks||[]).find(c=>!c.done);
+  if(openChunk){
+    launchChunk(task, openChunk);
+  } else {
+    askForChunk(task);
+  }
+}
+function askForChunk(task){
+  showOverlay(`
+    <div class="sheet">
+      <h3>Break it down</h3>
+      <p class="hint">What's the smallest physical first step for "${escapeHtml(task.title)}"? Tap one, or type your own.</p>
+      <div class="presets" style="margin-bottom:10px;">
+        ${['Open the file','Review notes','Outline first','Reply / send','Set up workspace'].map(s=>`<div class="preset-chip" onclick="pickChunkChip(this,'${s.replace(/'/g,"\\'")}')">${s}</div>`).join('')}
+      </div>
+      <input type="text" id="chunkInput" placeholder="or type a custom first step">
+      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="submitChunk('${task.id}')">Set as next chunk</button>
+    </div>
+  `);
+  setTimeout(()=>{
+    const el=document.getElementById('chunkInput');
+    el?.focus();
+    el?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); submitChunk(task.id); } });
+  }, 200);
+}
+function pickChunkChip(el, text){
+  document.getElementById('chunkInput').value = text;
+  document.querySelectorAll('.preset-chip').forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+function submitChunk(taskId){
+  const val = document.getElementById('chunkInput').value.trim();
+  if(!val){ toast('Name the first step'); return; }
+  const task = DATA.tasks.find(t=>t.id===taskId);
+  const chunk = {id:uid(), text:val, done:false};
+  task.chunks = task.chunks || [];
+  task.chunks.push(chunk);
+  saveData();
+  closeOverlay();
+  launchChunk(task, chunk);
+}
+function launchChunk(task, chunk){
+  DATA.active = {
+    type:'work', taskId:task.id, chunkId:chunk.id, taskTitle:task.title, project:task.project,
+    chunkText:chunk.text, mode:'timer', estimateMin:15, running:false
+  };
+  task.status='doing';
+  saveData();
+  renderHome();
+}
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------------- BOARD ---------------- */
+function renderBoard(){
+  const cols = [
+    {key:'backlog', label:'Backlog'},
+    {key:'doing', label:'Doing'},
+    {key:'done', label:'Done'},
+  ];
+  const el = document.getElementById('boardCols');
+  el.innerHTML = cols.map(c=>{
+    const items = DATA.tasks.filter(t=>t.status===c.key);
+    return `<div class="board-col">
+      <h3>${c.label} <span class="count">${items.length}</span></h3>
+      ${items.map(t=>`
+        <div class="task-item ${c.key==='done'?'done':''}">
+          <div class="t-info" onclick="pickTaskToRun('${t.id}')" style="cursor:pointer">
+            <div class="t-title">${escapeHtml(t.title)}</div>
+            <div class="t-proj">${escapeHtml(t.project||'general')}${t.chunks&&t.chunks.length? ' · '+t.chunks.filter(c=>c.done).length+'/'+t.chunks.length+' chunks':''}</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            ${c.key!=='done' ? `<button class="btn-sm btn-ghost" onclick="moveTask('${t.id}','done')">done</button>` : `<button class="btn-sm btn-ghost" onclick="moveTask('${t.id}','doing')">reopen</button>`}
+          </div>
+        </div>
+      `).join('') || '<p class="hint" style="color:var(--text-soft); font-size:13px;">Nothing here</p>'}
+    </div>`;
+  }).join('');
+}
+function moveTask(id, status){
+  const t=DATA.tasks.find(x=>x.id===id);
+  if(t){ t.status=status; saveData(); renderBoard(); }
+}
+function getProjects(){
+  return [...new Set(DATA.tasks.map(t=>t.project).filter(Boolean))];
+}
+function openNewTask(startAfter){
+  const projects = getProjects();
+  showOverlay(`
+    <div class="sheet">
+      <h3>New task</h3>
+      <label class="field-label">Title</label>
+      <input type="text" id="newTaskTitle" placeholder="e.g. Portugal e-design proposal — client 3">
+      <label class="field-label">Project</label>
+      <select id="newTaskProjectSelect" onchange="onProjectSelectChange()">
+        <option value="">— none —</option>
+        ${projects.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('')}
+        <option value="__new__">+ Add new project</option>
+      </select>
+      <input type="text" id="newTaskProjectNew" placeholder="New project name" style="display:none; margin-top:8px;">
+      <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="submitNewTask(${!!startAfter})">Add to board</button>
+    </div>
+  `);
+  setTimeout(()=>{
+    const t=document.getElementById('newTaskTitle');
+    t?.focus();
+    t?.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); submitNewTask(!!startAfter); } });
+  }, 200);
+}
+function onProjectSelectChange(){
+  const v = document.getElementById('newTaskProjectSelect').value;
+  document.getElementById('newTaskProjectNew').style.display = (v==='__new__') ? 'block' : 'none';
+}
+function submitNewTask(startAfter){
+  const title = document.getElementById('newTaskTitle').value.trim();
+  const sel = document.getElementById('newTaskProjectSelect').value;
+  const project = sel==='__new__' ? document.getElementById('newTaskProjectNew').value.trim() : sel;
+  if(!title){ toast('Give it a title'); return; }
+  const task = {id:uid(), title, project, status:'backlog', chunks:[]};
+  DATA.tasks.push(task);
+  saveData();
+  closeOverlay();
+  if(startAfter){ askForChunk(task); } else { renderBoard(); toast('Added to backlog'); }
+}
+
+/* ---------------- CAPTURE ---------------- */
+function addCapture(){
+  const input = document.getElementById('captureInput');
+  const val = input.value.trim();
+  if(!val) return;
+  DATA.captures.unshift({id:uid(), text:val, ts:Date.now()});
+  input.value='';
+  saveData();
+  renderCapture();
+  toast('Parked');
+}
+document.getElementById('captureInput').addEventListener('keydown', e=>{
+  if((e.metaKey||e.ctrlKey) && e.key==='Enter'){ e.preventDefault(); addCapture(); }
+});
+function renderCapture(){
+  const el = document.getElementById('captureList');
+  if(!DATA.captures.length){ el.innerHTML = '<p class="hint" style="color:var(--text-soft); font-size:13px; text-align:center; margin-top:20px;">Nothing parked. Good.</p>'; return; }
+  el.innerHTML = DATA.captures.map(c=>`
+    <div class="capture-item">
+      <div class="c-text">${escapeHtml(c.text)}<div class="c-time">${new Date(c.ts).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})}</div></div>
+      <button onclick="captureToTask('${c.id}')">→ board</button>
+    </div>
+  `).join('');
+}
+function captureToTask(id){
+  const c = DATA.captures.find(x=>x.id===id);
+  if(!c) return;
+  DATA.tasks.push({id:uid(), title:c.text, project:'from capture', status:'backlog', chunks:[]});
+  DATA.captures = DATA.captures.filter(x=>x.id!==id);
+  saveData();
+  renderCapture();
+  toast('Moved to board');
+}
+
+/* ---------------- LOG ---------------- */
+function renderLog(){
+  const el = document.getElementById('logContent');
+  const work = DATA.sessions.filter(s=>s.type==='work');
+  const recovery = DATA.sessions.filter(s=>s.type==='recovery');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayCount = work.filter(s=>s.ts>=today.getTime()).length;
+
+  // accuracy: avg abs diff between estimate and actual for timer-mode sessions
+  const withEstimate = work.filter(s=>s.mode==='timer' && s.estimateMin);
+  let accuracyTxt = '—';
+  if(withEstimate.length){
+    const avgDiffPct = withEstimate.reduce((sum,s)=>{
+      const est=s.estimateMin*60;
+      return sum + Math.abs(est-s.actualSec)/est;
+    },0)/withEstimate.length;
+    accuracyTxt = Math.round((1-Math.min(avgDiffPct,1))*100)+'%';
+  }
+
+  // weekly rhythm: last 7 days work vs recovery seconds
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+    const next=d.getTime()+86400000;
+    const workSec = work.filter(s=>s.ts>=d.getTime()&&s.ts<next).reduce((a,s)=>a+s.actualSec,0);
+    const restSec = recovery.filter(s=>s.ts>=d.getTime()&&s.ts<next).reduce((a,s)=>a+s.actualSec,0);
+    days.push({label:d.toLocaleDateString([], {weekday:'narrow'}), workSec, restSec});
+  }
+  const maxSec = Math.max(...days.map(d=>d.workSec+d.restSec), 600);
+
+  const moodEmoji = {neutral:'🙂', flow:'🌊', anxious:'😰', stuck:'🌀'};
+
+  el.innerHTML = `
+    <div class="stat-row">
+      <div class="stat-box"><div class="num">${todayCount}</div><div class="lbl">chunks today</div></div>
+      <div class="stat-box"><div class="num">${work.length}</div><div class="lbl">total chunks</div></div>
+      <div class="stat-box"><div class="num">${accuracyTxt}</div><div class="lbl">time accuracy</div></div>
+    </div>
+    <div class="card">
+      <label class="field-label">This week — work vs. recovery</label>
+      <div class="rhythm-row">
+        ${days.map(d=>{
+          const h = 90;
+          const workH = Math.max((d.workSec/maxSec)*h, d.workSec>0?4:0);
+          const restH = Math.max((d.restSec/maxSec)*h, d.restSec>0?4:0);
+          return `<div class="rhythm-col">
+            <div style="display:flex; flex-direction:column-reverse; width:100%; height:${h}px; justify-content:flex-start;">
+              <div class="rhythm-bar" style="height:${workH}px"></div>
+              <div class="rhythm-bar rest" style="height:${restH}px; margin-bottom:2px;"></div>
+            </div>
+            <div class="rhythm-day">${d.label}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <p class="hint" style="margin-top:8px;"><span style="color:var(--river-700)">■</span> work &nbsp; <span style="color:var(--gold-700)">■</span> recovery</p>
+    </div>
+    <div class="card">
+      <label class="field-label">Recent sessions</label>
+      ${work.slice().reverse().slice(0,10).map(s=>`
+        <div class="session-row">
+          <div>
+            <div style="font-weight:600">${escapeHtml(s.chunkText||s.taskTitle)}</div>
+            <div style="color:var(--text-soft); font-size:11.5px">${new Date(s.ts).toLocaleDateString([], {month:'short',day:'numeric'})} · ${fmt(s.actualSec)}${s.estimateMin? ' / est '+s.estimateMin+'m':''}</div>
+          </div>
+          <div class="mood-pill">${moodEmoji[s.moodEnd]||moodEmoji[s.moodStart]||''}</div>
+        </div>
+      `).join('') || '<p class="hint">Nothing logged yet.</p>'}
+    </div>
+  `;
+}
+
+/* ---------------- Overlay / Settings ---------------- */
+function showOverlay(html){
+  document.getElementById('overlayRoot').innerHTML = `<div class="overlay" id="ovl"><div style="width:100%">${html}</div></div>`;
+}
+function closeOverlay(){ document.getElementById('overlayRoot').innerHTML=''; }
+
+function openSettings(){
+  const notifPerm = ('Notification' in window) ? Notification.permission : 'unsupported';
+  showOverlay(`
+    <div class="sheet">
+      <h3>Settings</h3>
+      <label class="field-label">Notifications</label>
+      <p class="hint">Status: <b>${notifPerm}</b>${notifPerm==='denied' ? ' — re-enable in your browser/site settings' : ''}</p>
+      ${notifPerm!=='granted' ? `<button class="btn btn-ghost btn-block" onclick="requestNotificationPermission()">Enable notifications</button>` : ''}
+      <label class="field-label">Pre-committed redirect</label>
+      <p class="hint">Decided now, while calm — shown whenever you log an urge mid-session.</p>
+      <textarea id="redirectInput" rows="2">${escapeHtml(DATA.settings.redirect)}</textarea>
+      <div class="hint-inline">⌘/Ctrl + Enter to save</div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="saveSettings()">Save</button>
+    </div>
+  `);
+  setTimeout(()=>{
+    document.getElementById('redirectInput')?.addEventListener('keydown', e=>{
+      if((e.metaKey||e.ctrlKey) && e.key==='Enter'){ e.preventDefault(); saveSettings(); }
+    });
+  }, 50);
+}
+function saveSettings(){
+  DATA.settings.redirect = document.getElementById('redirectInput').value.trim() || DATA.settings.redirect;
+  saveData();
+  closeOverlay();
+  toast('Saved');
+}
+
+/* ---------------- init ---------------- */
+function render(){
+  renderHome();
+}
+loadData();
+</script>
+</body>
+</html>
