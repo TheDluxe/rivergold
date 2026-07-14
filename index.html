@@ -224,6 +224,10 @@
   .preset-chip.on{background:var(--river-900); border-color:var(--river-900); color:#fff;}
 
   .session-controls{display:flex; gap:10px; justify-content:center; margin-top:6px;}
+  .util-row{display:flex; gap:8px; justify-content:center; margin-bottom:14px;}
+  .util-row .btn-sm{padding:8px 14px;}
+  .noise-btn.on{background:var(--river-900); color:#fff;}
+  .pip-btn.on{background:var(--river-900); color:#fff;}
 
   /* floating buttons: centered relative to the app column, not the raw viewport */
   .floating-layer{
@@ -592,6 +596,28 @@ function notify(title, body){
   }
 }
 
+/* Ongoing/persistent countdown notification — silent, updates in place via a shared tag.
+   Best-effort: this updates reliably whenever the tab/PWA is alive (foreground, or a
+   backgrounded tab the OS hasn't suspended yet). Once the phone screen locks or the app is
+   fully backgrounded for a while, mobile OSes suspend page timers/service workers, so the
+   notification will stop refreshing until you reopen the app — there is no web API that
+   guarantees a true per-second background tick the way a native app's foreground service can. */
+function updatePersistentNotification(timeText, label, subtitle){
+  if(!swRegistration || !('Notification' in window) || Notification.permission!=='granted') return;
+  swRegistration.showNotification('Rivergold — '+timeText+' '+label, {
+    body: subtitle || 'Session in progress',
+    tag: 'rivergold-timer',
+    renotify: false,
+    silent: true,
+    icon: 'icon-192.png',
+    badge: 'icon-192.png'
+  }).catch(()=>{});
+}
+function clearPersistentNotification(){
+  if(!swRegistration) return;
+  swRegistration.getNotifications({tag:'rivergold-timer'}).then(ns=>ns.forEach(n=>n.close())).catch(()=>{});
+}
+
 /* ---------------- Tabs ---------------- */
 function switchTab(tab){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -617,11 +643,14 @@ let ringTimer=null;
 let ringStart=0;
 let ringDurationSec=0; // for timer mode
 let ringMode='timer';
-let alertsFired={half:false, near:false, done:false};
+let alertsFired={half:false, fifteen:false, near:false, done:false};
 
 function renderHome(){
   const el = document.getElementById('homeContent');
   if(!DATA.active){
+    if(noiseSource) stopBrownNoise();
+    if(pipWindow){ try{ pipWindow.close(); }catch(e){} pipWindow=null; }
+    clearPersistentNotification();
     document.getElementById('captureFab').style.display='none';
     document.getElementById('urgeBtn').style.display='none';
     const backlog = DATA.tasks.filter(t=>t.status!=='done');
@@ -662,11 +691,17 @@ function renderHome(){
           <circle class="ring-bg" cx="110" cy="110" r="96"></circle>
           <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="96" style="stroke:var(--gold-500)"></circle>
         </svg><div class="ring-center"><div class="time" id="ringTime">00:00</div><div class="label">elapsed</div></div></div>
+        <div class="util-row">
+          <button class="btn btn-sm btn-ghost noise-btn" onclick="toggleBrownNoise()">🎧 Noise</button>
+          <button class="btn btn-sm btn-ghost pip-btn" onclick="toggleAlwaysOnTop()">⤢ Pop out</button>
+        </div>
         <div class="session-controls">
           <button class="btn btn-river" onclick="endSession('neutral')">End recovery</button>
         </div>
       </div>`;
     startRing(true);
+    updateNoiseButtons(!!noiseSource);
+    if(pipWindow) document.querySelectorAll('.pip-btn').forEach(b=>b.classList.add('on'));
     return;
   }
   el.innerHTML = `
@@ -689,6 +724,10 @@ function renderHome(){
           <circle class="ring-bg" cx="110" cy="110" r="96"></circle>
           <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="96"></circle>
         </svg><div class="ring-center"><div class="time" id="ringTime">00:00</div><div class="label" id="ringLabel">${a.mode==='timer'?'remaining':'elapsed'}</div></div></div>
+        <div class="util-row">
+          <button class="btn btn-sm btn-ghost noise-btn" onclick="toggleBrownNoise()">🎧 Noise</button>
+          <button class="btn btn-sm btn-ghost pip-btn" onclick="toggleAlwaysOnTop()">⤢ Pop out</button>
+        </div>
         <div class="session-controls">
           <button class="btn btn-ghost" onclick="openMoodCheck('mid')">how's it feel?</button>
           <button class="btn btn-river" onclick="endSession()">Finish chunk</button>
@@ -696,7 +735,11 @@ function renderHome(){
       `}
     </div>
   `;
-  if(a.running) startRing(a.mode==='timer' ? false : true, a.mode==='timer' ? a.estimateMin*60 : null);
+  if(a.running){
+    startRing(a.mode==='timer' ? false : true, a.mode==='timer' ? a.estimateMin*60 : null);
+    updateNoiseButtons(!!noiseSource);
+    if(pipWindow) document.querySelectorAll('.pip-btn').forEach(b=>b.classList.add('on'));
+  }
 }
 
 /* ---------------- Quick Start categories ---------------- */
@@ -789,7 +832,7 @@ function beginRunning(){
 function startRing(countUp, totalSec){
   clearInterval(ringTimer);
   const startedAt = DATA.active.startTs;
-  alertsFired={half:false, near:false, done:false};
+  alertsFired={half:false, fifteen:false, near:false, done:false};
   const circle = document.getElementById('ringFg');
   const R=96, C=2*Math.PI*R;
   circle.style.strokeDasharray = C;
@@ -797,18 +840,33 @@ function startRing(countUp, totalSec){
     const elapsedSec = Math.floor((Date.now()-startedAt)/1000);
     const timeEl = document.getElementById('ringTime');
     if(!timeEl) { clearInterval(ringTimer); return; }
+    let labelTxt = countUp ? 'elapsed' : 'remaining';
+    const subtitle = (DATA.active.chunkText || DATA.active.taskTitle || 'Session');
     if(countUp){
       timeEl.textContent = fmt(elapsedSec);
       circle.style.strokeDashoffset = C - Math.min(elapsedSec/1800,1)*C; // slow ambient fill over 30min for visual life
+      if(elapsedSec % 15 === 0) updatePersistentNotification(fmt(elapsedSec), labelTxt, subtitle);
     } else {
       const remaining = Math.max(totalSec-elapsedSec,0);
       timeEl.textContent = fmt(remaining);
       const frac = Math.max(remaining/totalSec,0);
       circle.style.strokeDashoffset = C - frac*C;
       const pct = elapsedSec/totalSec;
+      if(elapsedSec % 15 === 0) updatePersistentNotification(fmt(remaining), labelTxt, subtitle);
       if(pct>=0.5 && !alertsFired.half){ alertsFired.half=true; circle.style.stroke='var(--gold-500)'; }
-      if(pct>=0.9 && !alertsFired.near){ alertsFired.near=true; circle.style.stroke='var(--warn-600)'; beep(1); vibrate(80); notify('Almost done', (DATA.active.chunkText||'Session')+' is wrapping up soon.'); }
-      if(remaining<=0 && !alertsFired.done){ alertsFired.done=true; beep(2); vibrate([100,60,100]); toast('Time\'s up — wrap up when ready'); notify('Time\'s up', (DATA.active.chunkText||'Session')+' — wrap up when ready.'); }
+      // 15-min-left transition warning (only meaningful on sessions longer than 15min — hobby/task blocks)
+      if(totalSec>900 && remaining<=900 && remaining>0 && !alertsFired.fifteen){
+        alertsFired.fifteen=true; vibrate([150,80,150]); notify('15 minutes left', (DATA.active.chunkText||'Session')+' — 15 minutes remaining. Start wrapping up whenever you\'re ready.');
+      }
+      if(pct>=0.9 && !alertsFired.near){ alertsFired.near=true; circle.style.stroke='var(--warn-600)'; vibrate(80); notify('Almost done', (DATA.active.chunkText||'Session')+' is wrapping up soon.'); }
+      if(remaining<=0 && !alertsFired.done){ alertsFired.done=true; vibrate([100,60,100]); toast('Time\'s up — wrap up when ready'); notify('Time\'s up', (DATA.active.chunkText||'Session')+' — wrap up when ready.'); }
+    }
+    if(pipWindow){
+      try{
+        const pt=pipWindow.document.getElementById('pipTime'); const pl=pipWindow.document.getElementById('pipLabel');
+        if(pt) pt.textContent = timeEl.textContent;
+        if(pl) pl.textContent = labelTxt;
+      }catch(e){}
     }
   }
   tick();
@@ -833,6 +891,64 @@ function beep(times){
   }catch(e){}
 }
 function vibrate(pattern){ try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){} }
+
+/* ---------------- Brown noise (generated, no file/network needed) ---------------- */
+let noiseCtx=null, noiseSource=null, noiseGain=null;
+function toggleBrownNoise(){ noiseSource ? stopBrownNoise() : startBrownNoise(); }
+function startBrownNoise(){
+  try{
+    noiseCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const bufferSize = 2*noiseCtx.sampleRate;
+    const buffer = noiseCtx.createBuffer(1, bufferSize, noiseCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0;
+    for(let i=0;i<bufferSize;i++){
+      const white = Math.random()*2-1;
+      data[i] = (lastOut + (0.02*white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5;
+    }
+    noiseSource = noiseCtx.createBufferSource();
+    noiseSource.buffer = buffer;
+    noiseSource.loop = true;
+    noiseGain = noiseCtx.createGain();
+    noiseGain.gain.value = 0.25;
+    noiseSource.connect(noiseGain);
+    noiseGain.connect(noiseCtx.destination);
+    noiseSource.start();
+    updateNoiseButtons(true);
+  }catch(e){ toast('Audio unavailable on this device'); }
+}
+function stopBrownNoise(){
+  try{ noiseSource && noiseSource.stop(); }catch(e){}
+  try{ noiseCtx && noiseCtx.close(); }catch(e){}
+  noiseSource=null; noiseCtx=null; noiseGain=null;
+  updateNoiseButtons(false);
+}
+function updateNoiseButtons(on){
+  document.querySelectorAll('.noise-btn').forEach(b=>{
+    b.classList.toggle('on', on);
+    b.textContent = on ? '🔊 Noise on' : '🎧 Noise';
+  });
+}
+
+/* ---------------- Always-on-top timer (Document Picture-in-Picture) ---------------- */
+let pipWindow = null;
+async function toggleAlwaysOnTop(){
+  if(!('documentPictureInPicture' in window)){ toast('Pop-out needs desktop Chrome/Edge'); return; }
+  if(pipWindow){ try{ pipWindow.close(); }catch(e){} pipWindow=null; return; }
+  try{
+    pipWindow = await documentPictureInPicture.requestWindow({width:200, height:150});
+    pipWindow.document.head.innerHTML = `<style>
+      html,body{margin:0; height:100%; background:#1B4B4A; display:flex; align-items:center; justify-content:center; font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+      #pipTime{color:#F6F2E6; font-size:44px; font-weight:700; font-variant-numeric:tabular-nums; text-align:center;}
+      #pipLabel{color:#8FBFBC; font-size:11px; text-align:center; margin-top:2px; text-transform:uppercase; letter-spacing:.5px;}
+    </style>`;
+    pipWindow.document.body.innerHTML = `<div><div id="pipTime">00:00</div><div id="pipLabel">elapsed</div></div>`;
+    pipWindow.addEventListener('pagehide', ()=>{ pipWindow=null; document.querySelectorAll('.pip-btn').forEach(b=>b.classList.remove('on')); });
+    document.querySelectorAll('.pip-btn').forEach(b=>b.classList.add('on'));
+  }catch(e){ toast('Could not open pop-out window'); pipWindow=null; }
+}
 
 /* mood check */
 function openMoodCheck(phase){
@@ -893,7 +1009,7 @@ function startResetTimer(){
     const el=document.getElementById('resetTime');
     if(!el){ clearInterval(iv); return; }
     el.textContent=s;
-    if(s<=0){ clearInterval(iv); beep(1); closeOverlay(); renderHome(); }
+    if(s<=0){ clearInterval(iv); vibrate([90,60,90]); closeOverlay(); renderHome(); }
   },1000);
 }
 
@@ -944,18 +1060,31 @@ function startRecovery(){
   renderHome();
 }
 
-/* impulse logging */
+/* impulse logging — forced, mandatory 60s reset. No skip: this is the point. */
 function logUrge(){
-  showOverlay(`
-    <div class="sheet">
-      <h3>Urge logged</h3>
-      <p class="hint">Your pre-committed redirect:</p>
-      <div class="card" style="background:var(--gold-100); box-shadow:none;">${escapeHtml(DATA.settings.redirect)}</div>
-      <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="closeOverlay()">Back to it</button>
-    </div>
-  `);
   DATA.sessions.push({id:uid(), type:'urge', ts:Date.now()});
   saveData();
+  forcedReset();
+}
+function forcedReset(){
+  let s=60;
+  vibrate(60);
+  showOverlay(`
+    <div class="sheet reset-modal">
+      <div class="leaf">🍃</div>
+      <h3>Urge logged — mandatory reset</h3>
+      <p class="hint">Stretch, or grab water. ${escapeHtml(DATA.settings.redirect)}</p>
+      <div class="time" id="resetTime" style="font-size:38px; font-weight:700; margin:14px 0; color:var(--river-900)">60</div>
+      <p class="hint" style="margin:0;">Returns you to the session automatically at zero.</p>
+    </div>
+  `);
+  const iv=setInterval(()=>{
+    s--;
+    const el=document.getElementById('resetTime');
+    if(!el){ clearInterval(iv); return; }
+    el.textContent=s;
+    if(s<=0){ clearInterval(iv); vibrate([90,60,90]); closeOverlay(); renderHome(); toast('Back to it'); }
+  },1000);
 }
 
 /* pick / start task */
