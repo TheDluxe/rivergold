@@ -321,6 +321,17 @@
     background:#fff; border-radius:var(--radius-md); padding:13px 14px; margin-bottom:8px; box-shadow:var(--shadow-soft);
     display:flex; justify-content:space-between; align-items:center; gap:10px;
     transition:box-shadow .15s ease;
+    touch-action:none; user-select:none;
+  }
+  .task-item.dragging-source{ opacity:0.35; }
+  .drag-ghost{
+    position:fixed; z-index:300; pointer-events:none; opacity:0.96;
+    box-shadow:0 16px 40px rgba(22,48,46,0.30) !important; transform:scale(1.03);
+    margin:0 !important;
+  }
+  .board-col{ border-radius:var(--radius-md); transition:background .15s ease, outline .15s ease; padding:2px; }
+  .board-col.drop-hover{
+    background:var(--river-100); outline:2px dashed var(--river-500); outline-offset:4px;
   }
   .task-item .t-info{flex:1; min-width:0;}
   .task-item .t-title{font-size:14px; font-weight:600; color:var(--text-strong); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -1026,11 +1037,11 @@ function renderBoard(){
   const el = document.getElementById('boardCols');
   el.innerHTML = cols.map(c=>{
     const items = DATA.tasks.filter(t=>t.status===c.key);
-    return `<div class="board-col">
+    return `<div class="board-col" data-status="${c.key}">
       <h3>${c.label} <span class="count">${items.length}</span></h3>
       ${items.map(t=>`
-        <div class="task-item ${c.key==='done'?'done':''}">
-          <div class="t-info" onclick="pickTaskToRun('${t.id}')" style="cursor:pointer">
+        <div class="task-item ${c.key==='done'?'done':''}" data-task-id="${t.id}">
+          <div class="t-info">
             <div class="t-title">${escapeHtml(t.title)}</div>
             <div class="t-proj">${escapeHtml(t.project||'general')}${t.chunks&&t.chunks.length? ' · '+t.chunks.filter(c=>c.done).length+'/'+t.chunks.length+' chunks':''}</div>
           </div>
@@ -1046,6 +1057,84 @@ function moveTask(id, status){
   const t=DATA.tasks.find(x=>x.id===id);
   if(t){ t.status=status; saveData(); renderBoard(); }
 }
+
+/* ---------------- Board drag & drop (pointer events — works for mouse + touch) ---------------- */
+let dragState = null;
+const DRAG_THRESHOLD = 6;
+
+function initBoardDragDrop(){
+  const container = document.getElementById('boardCols');
+  container.addEventListener('pointerdown', onBoardPointerDown);
+}
+function onBoardPointerDown(e){
+  const item = e.target.closest('.task-item');
+  if(!item || e.target.closest('button')) return;
+  const rect = item.getBoundingClientRect();
+  dragState = {
+    taskId: item.dataset.taskId,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    startX: e.clientX, startY: e.clientY,
+    width: rect.width,
+    moved: false,
+    ghost: null,
+    sourceItem: item
+  };
+  window.addEventListener('pointermove', onBoardPointerMove);
+  window.addEventListener('pointerup', onBoardPointerUp);
+}
+function onBoardPointerMove(e){
+  if(!dragState) return;
+  const dx = e.clientX - dragState.startX, dy = e.clientY - dragState.startY;
+  if(!dragState.moved && Math.hypot(dx,dy) > DRAG_THRESHOLD){
+    dragState.moved = true;
+    const ghost = dragState.sourceItem.cloneNode(true);
+    ghost.classList.add('drag-ghost');
+    ghost.style.width = dragState.width + 'px';
+    ghost.querySelectorAll('button').forEach(b=>b.style.pointerEvents='none');
+    document.body.appendChild(ghost);
+    dragState.ghost = ghost;
+    dragState.sourceItem.classList.add('dragging-source');
+  }
+  if(dragState.moved && dragState.ghost){
+    dragState.ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+    dragState.ghost.style.top = (e.clientY - dragState.offsetY) + 'px';
+    document.querySelectorAll('.board-col').forEach(c=>c.classList.remove('drop-hover'));
+    const col = columnAtPoint(e.clientX, e.clientY);
+    if(col) col.classList.add('drop-hover');
+  }
+}
+function onBoardPointerUp(e){
+  if(!dragState) return;
+  window.removeEventListener('pointermove', onBoardPointerMove);
+  window.removeEventListener('pointerup', onBoardPointerUp);
+  document.querySelectorAll('.board-col').forEach(c=>c.classList.remove('drop-hover'));
+
+  if(dragState.moved){
+    if(dragState.ghost) dragState.ghost.remove();
+    dragState.sourceItem.classList.remove('dragging-source');
+    const col = columnAtPoint(e.clientX, e.clientY);
+    if(col){
+      const status = col.dataset.status;
+      const task = DATA.tasks.find(t=>t.id===dragState.taskId);
+      if(task && status && task.status !== status){
+        task.status = status;
+        saveData();
+        renderBoard();
+        toast(status==='done' ? 'Marked done' : status==='doing' ? 'Moved to Doing' : 'Moved to Backlog');
+      }
+    }
+  } else {
+    // simple tap, no drag — open the task as before
+    pickTaskToRun(dragState.taskId);
+  }
+  dragState = null;
+}
+function columnAtPoint(x, y){
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('.board-col') : null;
+}
+
 function getProjects(){
   return [...new Set(DATA.tasks.map(t=>t.project).filter(Boolean))];
 }
@@ -1231,6 +1320,7 @@ function saveSettings(){
 function render(){
   renderHome();
 }
+initBoardDragDrop();
 loadData();
 </script>
 </body>
