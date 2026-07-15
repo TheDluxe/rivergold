@@ -217,6 +217,13 @@
   .ring-center .label{font-size:11.5px; color:var(--text-soft); margin-top:2px; text-transform:uppercase; letter-spacing:.5px;}
 
   .presets{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:16px;}
+  .energy-pill{display:inline-block; font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:6px;}
+  .energy-low{background:var(--river-100); color:var(--river-700);}
+  .energy-med{background:var(--gold-100); color:var(--gold-900);}
+  .energy-high{background:var(--warn-100); color:var(--warn-600);}
+  .track-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;}
+  .track-chip{font-size:11.5px; font-weight:700; padding:6px 12px; border-radius:999px; background:var(--river-100); color:var(--river-900);}
+  .track-chip.over{background:var(--warn-100); color:var(--warn-600);}
   .preset-chip{
     border:2px solid var(--river-100); background:#fff; padding:8px 14px; border-radius:999px; font-size:13px; font-weight:600; color:var(--river-700); cursor:pointer;
     transition:border-color .15s ease, background .15s ease;
@@ -525,7 +532,7 @@ let DATA = {
   tasks: [],       // {id, title, project, status: backlog|doing|done, chunks:[{id,text,estimateMin,mode}]}
   captures: [],     // {id,text,ts}
   sessions: [],     // completed {id,type:work|recovery,taskTitle,chunkText,mode,estimateMin,actualSec,moodStart,moodEnd,ts}
-  settings: {redirect: "Grab the jump rope for 3 minutes, then decide."},
+  settings: {redirect: "Grab the jump rope for 3 minutes, then decide.", wipLimit: 3},
   active: null      // {taskId,chunkId,taskTitle,chunkText,mode,estimateMin,startTs,phase}
 };
 
@@ -644,6 +651,44 @@ let ringStart=0;
 let ringDurationSec=0; // for timer mode
 let ringMode='timer';
 let alertsFired={half:false, fifteen:false, near:false, done:false};
+let homeEnergyFilter='any';
+function setHomeEnergyFilter(e){ homeEnergyFilter=e; renderHome(); }
+
+/* Repeated custom tasks surface as one-tap quick-starts — lowest-friction path for anything
+   that's already proven itself worth doing more than once. */
+function getFrequentTasks(){
+  const builtIn = Object.values(QUICK_CATEGORIES).map(c=>c.label);
+  const work = DATA.sessions.filter(s=>s.type==='work' && s.taskTitle && !builtIn.includes(s.taskTitle));
+  const byTitle = {};
+  work.forEach(s=>{
+    if(!byTitle[s.taskTitle]) byTitle[s.taskTitle] = [];
+    byTitle[s.taskTitle].push(s);
+  });
+  return Object.keys(byTitle)
+    .map(title=>{
+      const sessions = byTitle[title];
+      const withEst = sessions.filter(s=>s.estimateMin);
+      const avgEst = withEst.length ? Math.round(withEst.reduce((a,s)=>a+s.estimateMin,0)/withEst.length) : 15;
+      const last = sessions[sessions.length-1];
+      return {taskTitle:title, count:sessions.length, avgEst, mode:last.mode||'timer', chunkText:last.chunkText, project:last.project};
+    })
+    .filter(f=>f.count>=2)
+    .sort((a,b)=>b.count-a.count)
+    .slice(0,3);
+}
+function startFrequentTask(title){
+  const f = getFrequentTasks().find(x=>x.taskTitle===title);
+  if(!f) return;
+  const task = DATA.tasks.find(t=>t.title===title);
+  DATA.active = {
+    type:'work', taskId: task ? task.id : null, chunkId: null, taskTitle:title,
+    project: task ? task.project : (f.project||''), chunkText: f.chunkText||title,
+    mode: f.mode, estimateMin: f.avgEst, running:true, startTs:Date.now()
+  };
+  saveData();
+  renderHome();
+  openMoodCheck('start');
+}
 
 function renderHome(){
   const el = document.getElementById('homeContent');
@@ -654,6 +699,8 @@ function renderHome(){
     document.getElementById('captureFab').style.display='none';
     document.getElementById('urgeBtn').style.display='none';
     const backlog = DATA.tasks.filter(t=>t.status!=='done');
+    const filtered = homeEnergyFilter==='any' ? backlog : backlog.filter(t=>t.energy===homeEnergyFilter);
+    const frequent = getFrequentTasks();
     el.innerHTML = `
       <div class="card">
         <label class="field-label">Quick start — no typing needed</label>
@@ -662,6 +709,11 @@ function renderHome(){
           <button class="quick-btn" onclick="openQuickStart('calisthenics')"><span class="qi">💪</span>Calisthenics</button>
           <button class="quick-btn" onclick="openQuickStart('chores')"><span class="qi">🧹</span>Chores</button>
         </div>
+        ${frequent.length ? `
+        <label class="field-label" style="margin-top:16px;">Frequent — one tap, picks up where you left off</label>
+        <div class="quick-row">
+          ${frequent.map(f=>`<button class="quick-btn" onclick="startFrequentTask('${f.taskTitle.replace(/'/g,"\\'")}')"><span class="qi">🔁</span>${escapeHtml(f.taskTitle.length>16? f.taskTitle.slice(0,15)+'…' : f.taskTitle)}</button>`).join('')}
+        </div>` : ''}
       </div>
       <div class="card empty-state">
         <div class="leaf">🌿</div>
@@ -671,8 +723,11 @@ function renderHome(){
         <div style="height:10px"></div>
         <button class="btn btn-ghost btn-block" onclick="startRecovery()">Log a recovery block</button>
       </div>
-      ${backlog.length ? `<div class="card"><label class="field-label">Waiting on the board (${backlog.length})</label>
-        ${backlog.slice(0,3).map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('')}
+      ${backlog.length ? `<div class="card"><label class="field-label">Waiting on the board (${filtered.length}${homeEnergyFilter!=='any'?' · '+homeEnergyFilter:''})</label>
+        <div class="presets" style="justify-content:flex-start; margin-bottom:12px;">
+          ${['any','low','med','high'].map(e=>`<div class="preset-chip ${homeEnergyFilter===e?'on':''}" onclick="setHomeEnergyFilter('${e}')">${e==='any'?'Any energy':e}</div>`).join('')}
+        </div>
+        ${filtered.slice(0,5).map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}${t.energy?`<span class="energy-pill energy-${t.energy}">${t.energy}</span>`:''}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('') || '<p class="hint">Nothing at that energy level.</p>'}
       </div>` : ''}
     `;
     return;
@@ -1020,7 +1075,7 @@ function finalizeSession(){
   const a=DATA.active;
   const actualSec = Math.floor((Date.now()-a.startTs)/1000);
   DATA.sessions.push({
-    id:uid(), type:'work', taskTitle:a.taskTitle, chunkText:a.chunkText, mode:a.mode,
+    id:uid(), type:'work', taskTitle:a.taskTitle, chunkText:a.chunkText, mode:a.mode, project:a.project||null,
     estimateMin:a.estimateMin||null, actualSec, moodStart:a.moodStart||null, moodEnd:a.moodEnd||null, ts:Date.now()
   });
   // mark chunk done on task, find next chunk to auto-advance into
@@ -1090,11 +1145,15 @@ function forcedReset(){
 /* pick / start task */
 function openPickTask(){
   const list = DATA.tasks.filter(t=>t.status!=='done');
+  const filtered = homeEnergyFilter==='any' ? list : list.filter(t=>t.energy===homeEnergyFilter);
   showOverlay(`
     <div class="sheet">
       <h3>What's next</h3>
       <p class="hint">Pick from the board, or name something new.</p>
-      ${list.length? list.map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')" style="cursor:pointer"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('') : '<p class="hint">Board is empty.</p>'}
+      <div class="presets" style="justify-content:flex-start; margin-bottom:10px;">
+        ${['any','low','med','high'].map(e=>`<div class="preset-chip ${homeEnergyFilter===e?'on':''}" onclick="setHomeEnergyFilter('${e}'); openPickTask();">${e==='any'?'Any energy':e}</div>`).join('')}
+      </div>
+      ${filtered.length? filtered.map(t=>`<div class="task-item" onclick="pickTaskToRun('${t.id}')" style="cursor:pointer"><div class="t-info"><div class="t-title">${escapeHtml(t.title)}${t.energy?`<span class="energy-pill energy-${t.energy}">${t.energy}</span>`:''}</div><div class="t-proj">${escapeHtml(t.project||'general')}</div></div><div>›</div></div>`).join('') : '<p class="hint">Nothing at that energy level.</p>'}
       <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeOverlay(); openNewTask(true);">＋ New task</button>
     </div>
   `);
@@ -1145,6 +1204,7 @@ function submitChunk(taskId){
   launchChunk(task, chunk);
 }
 function launchChunk(task, chunk){
+  if(task.status!=='doing') checkWipAndWarn(task.project);
   DATA.active = {
     type:'work', taskId:task.id, chunkId:chunk.id, taskTitle:task.title, project:task.project,
     chunkText:chunk.text, mode:'timer', estimateMin:15, running:false
@@ -1164,14 +1224,23 @@ function renderBoard(){
     {key:'done', label:'Done'},
   ];
   const el = document.getElementById('boardCols');
-  el.innerHTML = cols.map(c=>{
+  const tracks = getProjects();
+  const wipLimit = DATA.settings.wipLimit || 3;
+  const trackRow = tracks.length ? `<div class="track-row">
+    ${tracks.map(p=>{
+      const doingCount = DATA.tasks.filter(t=>t.project===p && t.status==='doing').length;
+      const over = doingCount>=wipLimit;
+      return `<div class="track-chip ${over?'over':''}">${escapeHtml(p)} · ${doingCount}/${wipLimit} doing</div>`;
+    }).join('')}
+  </div>` : '';
+  el.innerHTML = trackRow + cols.map(c=>{
     const items = DATA.tasks.filter(t=>t.status===c.key);
     return `<div class="board-col" data-status="${c.key}">
       <h3>${c.label} <span class="count">${items.length}</span></h3>
       ${items.map(t=>`
         <div class="task-item ${c.key==='done'?'done':''}" data-task-id="${t.id}">
           <div class="t-info">
-            <div class="t-title">${escapeHtml(t.title)}</div>
+            <div class="t-title">${escapeHtml(t.title)}${t.energy?`<span class="energy-pill energy-${t.energy}">${t.energy}</span>`:''}</div>
             <div class="t-proj">${escapeHtml(t.project||'general')}${t.chunks&&t.chunks.length? ' · '+t.chunks.filter(c=>c.done).length+'/'+t.chunks.length+' chunks':''}</div>
           </div>
           <div style="display:flex; gap:6px;">
@@ -1182,9 +1251,18 @@ function renderBoard(){
     </div>`;
   }).join('');
 }
+function checkWipAndWarn(project){
+  if(!project) return;
+  const wipLimit = DATA.settings.wipLimit || 3;
+  const doingCount = DATA.tasks.filter(t=>t.project===project && t.status==='doing').length;
+  if(doingCount>=wipLimit) toast(`${project}: ${doingCount} already doing — WIP limit is ${wipLimit}`);
+}
 function moveTask(id, status){
   const t=DATA.tasks.find(x=>x.id===id);
-  if(t){ t.status=status; saveData(); renderBoard(); }
+  if(t){
+    if(status==='doing') checkWipAndWarn(t.project);
+    t.status=status; saveData(); renderBoard();
+  }
 }
 
 /* ---------------- Board drag & drop (pointer events — works for mouse + touch) ---------------- */
@@ -1247,6 +1325,7 @@ function onBoardPointerUp(e){
       const status = col.dataset.status;
       const task = DATA.tasks.find(t=>t.id===dragState.taskId);
       if(task && status && task.status !== status){
+        if(status==='doing') checkWipAndWarn(task.project);
         task.status = status;
         saveData();
         renderBoard();
@@ -1281,6 +1360,13 @@ function openNewTask(startAfter){
         <option value="__new__">+ Add new project</option>
       </select>
       <input type="text" id="newTaskProjectNew" placeholder="New project name" style="display:none; margin-top:8px;">
+      <label class="field-label">Energy needed (optional)</label>
+      <select id="newTaskEnergy">
+        <option value="">— not set —</option>
+        <option value="low">Low</option>
+        <option value="med">Medium</option>
+        <option value="high">High</option>
+      </select>
       <button class="btn btn-primary btn-block" style="margin-top:16px" onclick="submitNewTask(${!!startAfter})">Add to board</button>
     </div>
   `);
@@ -1299,7 +1385,8 @@ function submitNewTask(startAfter){
   const sel = document.getElementById('newTaskProjectSelect').value;
   const project = sel==='__new__' ? document.getElementById('newTaskProjectNew').value.trim() : sel;
   if(!title){ toast('Give it a title'); return; }
-  const task = {id:uid(), title, project, status:'backlog', chunks:[]};
+  const energy = document.getElementById('newTaskEnergy').value || null;
+  const task = {id:uid(), title, project, status:'backlog', chunks:[], energy};
   DATA.tasks.push(task);
   saveData();
   closeOverlay();
@@ -1429,6 +1516,9 @@ function openSettings(){
       <p class="hint">Decided now, while calm — shown whenever you log an urge mid-session.</p>
       <textarea id="redirectInput" rows="2">${escapeHtml(DATA.settings.redirect)}</textarea>
       <div class="hint-inline">⌘/Ctrl + Enter to save</div>
+      <label class="field-label">WIP limit per track/project</label>
+      <p class="hint">A nudge (not a lock) when a project already has this many tasks "doing".</p>
+      <input type="text" id="wipLimitInput" value="${DATA.settings.wipLimit||3}" inputmode="numeric">
       <button class="btn btn-primary btn-block" style="margin-top:14px" onclick="saveSettings()">Save</button>
     </div>
   `);
@@ -1440,6 +1530,8 @@ function openSettings(){
 }
 function saveSettings(){
   DATA.settings.redirect = document.getElementById('redirectInput').value.trim() || DATA.settings.redirect;
+  const wip = parseInt(document.getElementById('wipLimitInput').value, 10);
+  DATA.settings.wipLimit = (Number.isFinite(wip) && wip>0) ? wip : DATA.settings.wipLimit;
   saveData();
   closeOverlay();
   toast('Saved');
